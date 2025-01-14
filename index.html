@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speedometer App with Direction Indicator</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=f6fe6522c73845aab84ba9f7d66e069b&libraries=places&async=true&defer=true"></script>
+    <!-- FontAwesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #fff;
+            color: #000;
+        }
+
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        #app-container {
+            display: none;
+            padding: 20px;
+            min-height: 100vh;
+            background: url('./bg.webp') no-repeat center center fixed;
+            background-size: cover;
+        }
+
+        .speed-circle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px auto;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: rgba(0, 123, 255, 0.8);
+            color: #fff;
+            font-size: 2.5rem;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .unit-buttons {
+            display: flex;
+            justify-content: center;
+            margin: 15px 0;
+        }
+
+        .unit-buttons button {
+            margin: 0 5px;
+            padding: 12px 25px;
+            font-size: 1rem;
+            border: none;
+            background: rgba(0, 123, 255, 0.8);
+            color: #fff;
+            border-radius: 25px;
+            cursor: pointer;
+        }
+
+        .unit-buttons button.active {
+            background: rgba(255, 87, 34, 0.8);
+        }
+
+        #map {
+            height: 400px;
+            margin: 20px auto;
+            border-radius: 10px;
+        }
+
+        .direction-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(0, 123, 255, 0.8);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-align: center;
+            transition: transform 0.1s;
+        }
+
+        .time-display {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        #destination {
+            margin-bottom: 15px;
+            padding: 10px;
+            width: 100%;
+            font-size: 1rem;
+            border: 2px solid #007bff;
+            border-radius: 10px;
+        }
+
+        #suggestions {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            max-height: 150px;
+            overflow-y: auto;
+            position: absolute;
+            background: rgb(236, 229, 229);
+            z-index: 1000;
+        }
+
+        #suggestions li {
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        #suggestions li:hover {
+            background: #0f0000;
+        }
+
+        #enter-button, #reset-button {
+            padding: 12px 20px;
+            margin-right: 5px;
+            background: #28a745;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        #reset-button {
+            background: #dc3545;
+        }
+
+        #enter-button:hover {
+            background: #218838;
+        }
+
+        #reset-button:hover {
+            background: #c82333;
+        }
+
+        h2 {
+            margin-top: 20px;
+            text-align: center;
+            color: #333;
+        }
+
+        #reached-time {
+            margin: 10px auto;
+            width: 200px;
+            height: 100px;
+            border-radius: 50%;
+            background: rgba(255, 87, 34, 0.8);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+
+        /* Footer Section */
+        footer {
+            background-color: #333;
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .contact-us {
+            margin-bottom: 10px;
+        }
+
+        .social-icons a {
+            color: #fff;
+            margin: 0 15px;
+            font-size: 2rem;
+            text-decoration: none;
+        }
+
+        .social-icons a:hover {
+            color: #007bff;
+        }
+
+        .copyright {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.8rem;
+        }
+
+        /* Splash Screen Image */
+        #splash-screen img {
+            max-width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="splash-screen">
+        <img src="./logo.jpg" alt="Splash Image">
+    </div>
+    <div id="app-container">
+        <div class="time-display" id="time-display"></div>
+        <div class="speed-circle" id="speed">0 km/h</div>
+        <div class="unit-buttons">
+            <button id="km" onclick="setUnit('km')" class="active">KM/H</button>
+            <button id="miles" onclick="setUnit('miles')">Miles/H</button>
+            <button id="meters" onclick="setUnit('meters')">Meters/S</button>
+        </div>
+        <input type="text" id="destination" placeholder="Enter destination" oninput="getSuggestions()">
+        <ul id="suggestions"></ul>
+        <div>
+            <button id="enter-button" onclick="setDestination()">Set Destination</button>
+            <button id="reset-button" onclick="resetApp()">Reset</button>
+        </div>
+        <h2>Reached At</h2>
+        <div id="reached-time">--:--:--</div>
+        <div id="map"></div>
+        <div class="direction-indicator" id="direction-display">N</div>
+    </div>
+
+    <footer>
+        <div class="contact-us">
+            <p>Contact Us:</p>
+            <div class="social-icons">
+                <!-- FontAwesome Icons -->
+                <a href="saisrinivasboga@gmail.com"><i class="fas fa-envelope"></i></a>
+                <a href="https://www.instagram.com/sai_srinivas_boga?igsh=anptYjBpeGl2cTRq"><i class="fab fa-instagram"></i></a>
+            </div>
+        </div>
+        <div class="copyright">
+            <p>&copy; 2025 Sai Srinivas</p>
+        </div>
+    </footer>
+
+    <script>
+        let unit = 'km';
+        let speed = 0;
+        let prevLatLng = null;
+        let destinationLatLng = null;
+        let map, routeLayer, geocoder, userMarker, arrowMarker;
+        let directionIcon = L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/25/25475.png',
+            iconSize: [50, 50],
+            iconAnchor: [25, 25],
+            popupAnchor: [0, 0]
+        });
+
+        window.onload = () => {
+            setTimeout(() => {
+                document.getElementById('splash-screen').style.display = 'none';
+                document.getElementById('app-container').style.display = 'block';
+                initializeMap();
+                updateTime();
+            }, 3000); // Display the splash image for 3 seconds
+        };
+
+        function initializeMap() {
+            map = L.map('map').setView([0, 0], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            geocoder = L.Control.Geocoder.nominatim();
+
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(updateLocation, showGeolocationError, { enableHighAccuracy: true });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        }
+
+        function showGeolocationError(error) {
+            alert("Error getting location: " + error.message);
+        }
+
+        function updateLocation(position) {
+            const { latitude, longitude, speed: gpsSpeed, heading } = position.coords;
+            speed = gpsSpeed || 0;
+
+            const currentLatLng = [latitude, longitude];
+            if (prevLatLng) {
+                routeLayer.addLatLng(currentLatLng);
+            }
+            prevLatLng = currentLatLng;
+            map.setView(currentLatLng, 13);
+
+            if (!userMarker) {
+                userMarker = L.marker([latitude, longitude]).addTo(map);
+            } else {
+                userMarker.setLatLng([latitude, longitude]);
+            }
+
+            document.getElementById('speed').innerText = `${convertSpeed(speed).toFixed(1)} ${unit}`;
+
+            if (heading !== null) {
+                const direction = getDirectionFromHeading(heading);
+                document.getElementById('direction-display').innerText = direction;
+                if (!arrowMarker) {
+                    arrowMarker = L.marker([latitude, longitude], {
+                        icon: directionIcon,
+                        rotationAngle: heading
+                    }).addTo(map);
+                } else {
+                    arrowMarker.setLatLng([latitude, longitude]);
+                    arrowMarker.setRotationAngle(heading);
+                }
+            }
+
+            if (destinationLatLng) {
+                calculateArrivalTime();
+            }
+
+            const currentTime = new Date().toLocaleTimeString();
+            document.getElementById('time-display').innerText = currentTime;
+        }
+
+        function getDirectionFromHeading(heading) {
+            if (heading >= 315 || heading < 45) return 'N';
+            if (heading >= 45 && heading < 135) return 'E';
+            if (heading >= 135 && heading < 225) return 'S';
+            if (heading >= 225 && heading < 315) return 'W';
+            return '';
+        }
+
+        function convertSpeed(speed) {
+            switch (unit) {
+                case 'km':
+                    return speed * 3.6;
+                case 'miles':
+                    return speed * 2.23694;
+                case 'meters':
+                    return speed;
+            }
+        }
+
+        function setUnit(newUnit) {
+            unit = newUnit;
+            document.querySelectorAll('.unit-buttons button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(newUnit).classList.add('active');
+            document.getElementById('speed').innerText = `${convertSpeed(speed).toFixed(1)} ${unit}`;
+            if (destinationLatLng) {
+                calculateArrivalTime();
+            }
+        }
+
+        function getSuggestions() {
+            const destination = document.getElementById('destination').value;
+            const suggestionsList = document.getElementById('suggestions');
+            suggestionsList.innerHTML = '';
+
+            if (destination.length > 1) {
+                fetch(`https://api.opencagedata.com/geocode/v1/json?q=${destination}&key=f6fe6522c73845aab84ba9f7d66e069b`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const results = data.results || [];
+                        results.forEach(result => {
+                            const li = document.createElement('li');
+                            li.textContent = result.formatted;
+                            li.onclick = () => {
+                                setDestination(result.geometry.lat, result.geometry.lng);
+                                suggestionsList.innerHTML = ''; // Hide the suggestions list after selection
+                            };
+                            suggestionsList.appendChild(li);
+                        });
+                    });
+            }
+        }
+
+        function setDestination(lat, lng) {
+            destinationLatLng = [lat, lng];
+            if (routeLayer) {
+                routeLayer.setWaypoints([prevLatLng, destinationLatLng]);
+            } else {
+                routeLayer = L.Routing.control({
+                    waypoints: [prevLatLng, destinationLatLng],
+                    routeWhileDragging: true
+                }).addTo(map);
+            }
+            calculateArrivalTime();
+        }
+
+        function calculateArrivalTime() {
+            if (speed === 0) return;
+
+            const dist = map.distance(prevLatLng, destinationLatLng); 
+            const timeInSeconds = dist / (speed / 3.6);
+            const arrivalTime = new Date(new Date().getTime() + timeInSeconds * 1000);
+            const timeString = arrivalTime.toLocaleTimeString();
+
+            document.getElementById('reached-time').innerText = timeString;
+        }
+
+        function resetApp() {
+            document.getElementById('destination').value = '';
+            document.getElementById('suggestions').innerHTML = '';
+            if (routeLayer) {
+                routeLayer.setWaypoints([]);
+            }
+            document.getElementById('reached-time').innerText = '--:--:--';
+            destinationLatLng = null;
+        }
+
+        function updateTime() {
+            const currentTime = new Date().toLocaleTimeString();
+            document.getElementById('time-display').innerText = currentTime;
+            setTimeout(updateTime, 1000);
+        }
+    </script>
+</body>
+</html>
